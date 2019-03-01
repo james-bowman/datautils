@@ -27,6 +27,13 @@ func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve
 
 	// count total positives from ground truth
 	pos := floats.Sum(labels)
+	if pos == 0 {
+		return PrecisionRecallCurve{
+			Precision:  append(precision[:0], 1),
+			Recall:     append(recall[:0], 0),
+			Thresholds: thresholds[:0],
+		}
+	}
 
 	copy(thresholds, predictions)
 	floats.Argsort(thresholds, ind)
