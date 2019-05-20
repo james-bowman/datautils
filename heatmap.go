@@ -31,7 +31,7 @@ func (t ticks) Ticks(min, max float64) []plot.Tick {
 	return retval
 }
 
-func PlotHeatmap(corr mat.Matrix, labels []string) (p *plot.Plot, err error) {
+func PlotHeatmap(corr mat.Matrix, xlabels []string, ylabels []string) (p *plot.Plot, err error) {
 	pal := palette.Heat(48, 1)
 	m := heatmap{corr}
 	hm := plotter.NewHeatMap((plotter.GridXYZ)(m), pal)
@@ -45,8 +45,8 @@ func PlotHeatmap(corr mat.Matrix, labels []string) (p *plot.Plot, err error) {
 	p.Y.Tick.Label.Font.Size = 6
 	p.X.Tick.Label.Font.Size = 6
 	p.X.Tick.Label.XAlign = draw.XRight
-	p.X.Tick.Marker = ticks(labels)
-	p.Y.Tick.Marker = ticks(labels)
+	p.X.Tick.Marker = ticks(xlabels)
+	p.Y.Tick.Marker = ticks(ylabels)
 
 	l, err := plot.NewLegend()
 	if err != nil {
