@@ -9,12 +9,35 @@ import (
 	"gonum.org/v1/plot/plotter"
 )
 
+// PrecisionRecallCurve represents a precision recall curve for visualising and measuring the performance of a
+// classification or information retrieval model.  It can be used to evaluate how well the model predictions
+// can be ranked compared to a perfect ranking according to the ground truth labels.  This is usefull when
+// evaluating ranking based on relevancy for information retrieval or raw classification performance based on
+// predicted probability of class membership e.g. logistic regression predictions without using a threshold to
+// determine the class for the predicted probability.  To measure Precision@K using the precision recall curve
+// where K is the cut-off simply index Precision e.g. Precision[k-1].
 type PrecisionRecallCurve struct {
-	Precision  []float64
-	Recall     []float64
+	// Precision is a slice containing the ranked precision values at K for the predictions until all positive/
+	// relevant items were found according to corresponding the ground truth labels (recall==1)
+	Precision []float64
+
+	// Recall is a slice containing the ranked recall values at K for the predictions until all positive/
+	// relevant items were found according to corresponding the ground truth labels (recall==1)
+	Recall []float64
+
+	// Thresholds is a slice containing the ranked (sorted) predictions (probability/similarity scores) until
+	// all positive/relevant items were found according to corresponding the ground truth labels (recall==1)
 	Thresholds []float64
 }
 
+// NewPrecisionRecallCurve creates a new precision recall curve.  The precision recall curve visualises how well
+// the model's predictions (or similarity scores for information retrieval) can be ranked compared to a perfect
+// ranking according to the ground truth labels.  Both the supplied predictions and labels slices can be in any
+// order providing they are identical lengths and their order matches e.g. predictions[5] corresponds to the
+// ground truth labels[5].  As Precision Recall curves and average precision (summarising the curve as a single
+// metric/area under the curve) represent a binary class/relevance measure we assume that any label value greater
+// than 0 represents a positive/relative observation (and 0 label values represent a negative/non-relevant
+// observation).
 func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve {
 	if len(predictions) != len(labels) {
 		panic("Prediction/Label length mismatch")
@@ -25,9 +48,16 @@ func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve
 	precision := make([]float64, len(predictions))
 	ind := make([]int, len(predictions))
 
-	// count total positives from ground truth
-	pos := floats.Sum(labels)
-	if pos == 0 {
+	// count total positive/relevant observations from ground truth
+	// as floats.Norm() does not work for zero norm we will use floats.Count() instead
+	positives := floats.Count(func(x float64) bool {
+		if x > 0 {
+			return true
+		}
+		return false
+	}, labels)
+
+	if positives == 0 {
 		return PrecisionRecallCurve{
 			Precision:  append(precision[:0], 1),
 			Recall:     append(recall[:0], 0),
@@ -35,6 +65,7 @@ func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve
 		}
 	}
 
+	// rank predictions/similarities
 	copy(thresholds, predictions)
 	floats.Argsort(thresholds, ind)
 
@@ -42,21 +73,28 @@ func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve
 	var k int
 
 	for i := len(thresholds) - 1; i >= 0; i-- {
-		if labels[ind[i]] == 1 {
+		// assume that any label value over 0 is positive/relevant.  Average precision works on a binary label
+		// but in some cases we may use non-binary/multi-class labels e.g. for degrees of relevancy in information
+		// retrieval
+		if labels[ind[i]] > 0 {
 			hits++
 		}
-		recall[k] = float64(hits) / float64(pos)
+		recall[k] = float64(hits) / float64(positives)
 		precision[k] = float64(hits) / float64(k+1)
 		if recall[k] == 1 {
 			break
 		}
 		k++
 	}
+	// truncate precision and recall to where the last relevant/positive item was ranked (recall==1)
 	precision = precision[:k+1]
 	recall = recall[:k+1]
 
+	// reverse order so highest similarity/probability is ranked higher/first
 	floats.Reverse(precision)
 	floats.Reverse(recall)
+
+	// TODO: Discounted Culmulative Gain and Normalised Discounted Culmulative Gain metrics
 
 	return PrecisionRecallCurve{
 		Precision:  append(precision, 1),
@@ -65,6 +103,7 @@ func NewPrecisionRecallCurve(predictions, labels []float64) PrecisionRecallCurve
 	}
 }
 
+// Plot renders the entire precision recall curve as a plot for visualisation.
 func (c PrecisionRecallCurve) Plot() *plot.Plot {
 	p, err := plot.New()
 	if err != nil {
@@ -93,6 +132,9 @@ func (c PrecisionRecallCurve) Plot() *plot.Plot {
 	return p
 }
 
+// AveragePrecision calculates the average precision based on the predictions and labels the curve was
+// constructed with.  Average Precision represents the area under the curve of the precision recall curve
+// and is a method for summarising the curve in a single metric.
 func (c PrecisionRecallCurve) AveragePrecision() float64 {
 	var sum float64
 	for i := 0; i < len(c.Precision)-1; i++ {
