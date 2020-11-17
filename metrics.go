@@ -15,7 +15,9 @@ import (
 // evaluating ranking based on relevancy for information retrieval or raw classification performance based on
 // predicted probability of class membership e.g. logistic regression predictions without using a threshold to
 // determine the class for the predicted probability.  To measure Precision@K using the precision recall curve
-// where K is the cut-off simply index Precision e.g. Precision[k-1].
+// where K is the cut-off simply index Precision e.g. Precision[K] or to measure Precision@1 index Precision[1].
+// It is important to note that Precision[0] and Recall[0] indicate the precision and recall @ 0 and so will always
+// be 1 and 0 respectively.
 type PrecisionRecallCurve struct {
 	// Precision is a slice containing the ranked precision values at K for the predictions until all positive/
 	// relevant items were found according to corresponding the ground truth labels (recall==1)
