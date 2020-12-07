@@ -35,6 +35,39 @@ var datasets = []struct {
 	},
 }
 
+func TestCumulativeGain(t *testing.T) {
+	tests := []float64{2, 2, 3, 0, 0}
+
+	for i, test := range tests {
+		evaluation := datautils.NewRankingEvaluation(datasets[i].probs, datasets[i].labels)
+		if test != evaluation.CumulativeGain(len(evaluation.Relevancies)) {
+			t.Errorf("Test %d: Expected cumulative gain: %v but received %v", i+1, test, evaluation.CumulativeGain(len(evaluation.Relevancies)))
+		}
+	}
+}
+
+func TestDiscountedCumulativeGain(t *testing.T) {
+	tests := []float64{1.5, 1.0616063116448504, 1.4178134987528725, 0, 0}
+
+	for i, test := range tests {
+		evaluation := datautils.NewRankingEvaluation(datasets[i].probs, datasets[i].labels)
+		if test != evaluation.DiscountedCumulativeGain(len(evaluation.Relevancies), datautils.TraditionalRelevancy) {
+			t.Errorf("Test %d: Expected discounted cumulative gain: %v but received %v", i+1, test, evaluation.DiscountedCumulativeGain(len(evaluation.Relevancies), datautils.TraditionalRelevancy))
+		}
+	}
+}
+
+func TestNormalisedDiscountedCumulativeGain(t *testing.T) {
+	tests := []float64{0.9197207891481877, 0.6509209298071325, 0.6653497124326151, 1, 1}
+
+	for i, test := range tests {
+		evaluation := datautils.NewRankingEvaluation(datasets[i].probs, datasets[i].labels)
+		if test != evaluation.NormalisedDiscountedCumulativeGain(len(evaluation.Relevancies), datautils.TraditionalRelevancy) {
+			t.Errorf("Test %d: Expected normalised discounted cumulative gain: %v but received %v", i+1, test, evaluation.NormalisedDiscountedCumulativeGain(len(evaluation.Relevancies), datautils.TraditionalRelevancy))
+		}
+	}
+}
+
 func TestPrecisionRecallCurveCreation(t *testing.T) {
 	// Test the metric functions
 	tests := []struct {

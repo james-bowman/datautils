@@ -3,147 +3,109 @@ package datautils
 import (
 	"fmt"
 	"image/color"
+	"math"
 
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 )
 
-type DiscountedCumulativeGain struct {
-	// Thresholds is a slice containing the ranked (sorted) predictions (probability/similarity scores) until
-	// all positive/relevant items were found according to corresponding the ground truth labels (recall==1)
-	Thresholds []float64
+func reverse(numbers []int) {
+	for i, j := 0, len(numbers)-1; i < j; i, j = i+1, j-1 {
+		numbers[i], numbers[j] = numbers[j], numbers[i]
+	}
 }
 
-/*
-func NewDiscountedCumulativeGain(predictions, labels []float64) DiscountedCumulativeGain {
+type RankingEvaluation struct {
+	// Thresholds is a slice containing the ranked (sorted) predictions (probability/similarity scores) until
+	// all positive/relevant items were found according to corresponding the ground truth labels (recall==1)
+	Relevancies      []float64
+	PredictedRankInd []int
+	PerfectRankInd   []int
+}
+
+func NewRankingEvaluation(predictions, labels []float64) RankingEvaluation {
 	if len(predictions) != len(labels) {
 		panic("Prediction/Label length mismatch")
 	}
 
 	thresholds := make([]float64, len(predictions))
-	ind := make([]int, len(predictions))
+	predInd := make([]int, len(predictions))
+	relevance := make([]float64, len(labels))
+	perfInd := make([]int, len(labels))
 
-	cg := make([]float64, len(predictions))
-	dcg := make([]float64, len(predictions))
-	perfectdcg := make([]float64, len(predictions))
-
-	recall := make([]float64, len(predictions))
-	precision := make([]float64, len(predictions))
-
-
-	maxRelevance := floats.Max(labels)
-	if maxRelevance == 0 {
-		return DiscountedCumulativeGain{
-			Thresholds: thresholds[:0],
-		}
-	}
-
-	// rank predictions/similarities
-	copy(thresholds, predictions)
-	floats.Argsort(thresholds, ind)
-
-	dcg[0] = labels[ind[len(ind)-1]]
-	k := 1
-
-	for i := len(ind) - 2; i >= 0; i-- {
-		dcg[k] = dcg[k-1] + labels[ind[i]]/math.Log2(k)
-		k++
-	}
-
-	for i := maxRelevance; i >= 0; i-- {
-		count := floats.Count(func(x float64) bool {
-			if x == i {
-				return true
+	/*
+		if floats.Max(labels) == 0 {
+			for i := 0; i <
+			return RankingEvaluation{
+				Relevancies:      labels,
+				PredictedRankInd: predInd,
+				PerfectRankInd:   perfInd,
 			}
-			return false
-		}, labels)
-
-	}
-
-	perfectdcg[0] = maxRelevance
-
-	for i := 1; i < len(perfectdcg); i++ {
-
-	}
-
-
-
-		// assume that any label value over 0 is positive/relevant.  Average precision works on a binary label
-		// but in some cases we may use non-binary/multi-class labels e.g. for degrees of relevancy in information
-		// retrieval
-		if labels[ind[i]] > 0 {
-			hits++
 		}
-		recall[k] = float64(hits) / float64(positives)
-		precision[k] = float64(hits) / float64(k+1)
-		if recall[k] == 1 {
-			break
-		}
-		k++
-	}
-
-
-
-
-
-
-	// count total positive/relevant observations from ground truth
-	// as floats.Norm() does not work for zero norm we will use floats.Count() instead
-
-	positives := floats.Count(func(x float64) bool {
-		if x > 0 {
-			return true
-		}
-		return false
-	}, labels)
-
-	if positives == 0 {
-		return PrecisionRecallCurve{
-			Precision:  append(precision[:0], 1),
-			Recall:     append(recall[:0], 0),
-			Thresholds: thresholds[:0],
-		}
-	}
+	*/
 
 	// rank predictions/similarities
 	copy(thresholds, predictions)
-	floats.Argsort(thresholds, ind)
+	floats.Argsort(thresholds, predInd)
 
-	var hits int
-	var k int
-
-	for i := len(thresholds) - 1; i >= 0; i-- {
-		// assume that any label value over 0 is positive/relevant.  Average precision works on a binary label
-		// but in some cases we may use non-binary/multi-class labels e.g. for degrees of relevancy in information
-		// retrieval
-		if labels[ind[i]] > 0 {
-			hits++
-		}
-		recall[k] = float64(hits) / float64(positives)
-		precision[k] = float64(hits) / float64(k+1)
-		if recall[k] == 1 {
-			break
-		}
-		k++
-	}
-	// truncate precision and recall to where the last relevant/positive item was ranked (recall==1)
-	precision = precision[:k+1]
-	recall = recall[:k+1]
+	copy(relevance, labels)
+	floats.Argsort(relevance, perfInd)
 
 	// reverse order so highest similarity/probability is ranked higher/first
-	floats.Reverse(precision)
-	floats.Reverse(recall)
+	reverse(predInd)
+	reverse(perfInd)
 
-	// TODO: Discounted Culmulative Gain and Normalised Discounted Culmulative Gain metrics
-
-	return PrecisionRecallCurve{
-		Precision:  append(precision, 1),
-		Recall:     append(recall, 0),
-		Thresholds: thresholds[len(thresholds)-k-1:],
+	return RankingEvaluation{
+		Relevancies:      labels,
+		PredictedRankInd: predInd,
+		PerfectRankInd:   perfInd,
 	}
 }
-*/
+
+func (r RankingEvaluation) CumulativeGain(k int) float64 {
+	var sum float64
+	for _, v := range r.PredictedRankInd[:k] {
+		sum += r.Relevancies[v]
+	}
+	return sum
+}
+
+func TraditionalRelevancy(r float64) float64 {
+	return r
+}
+
+func EmphasisedRelevancy(r float64) float64 {
+	return math.Pow(2, r) - 1
+}
+
+type RelevancyFunction func(float64) float64
+
+func (r RankingEvaluation) discountedCumulativeGain(k int, rankings []int, rel RelevancyFunction) float64 {
+	var sum float64
+	for i, v := range rankings[:k] {
+		sum += rel(r.Relevancies[v]) / math.Log2(float64(i+2))
+	}
+	return sum
+}
+
+func (r RankingEvaluation) DiscountedCumulativeGain(k int, rel RelevancyFunction) float64 {
+	if k < 1 || k > len(r.Relevancies) {
+		panic("index k is out of bounds")
+	}
+	return r.discountedCumulativeGain(k, r.PredictedRankInd, rel)
+}
+
+func (r RankingEvaluation) NormalisedDiscountedCumulativeGain(k int, rel RelevancyFunction) float64 {
+	if k < 1 || k > len(r.Relevancies) {
+		panic("index k is out of bounds")
+	}
+	if r.CumulativeGain(k) == 0 {
+		// no relevant items so any order is perfect
+		return 1.0
+	}
+	return r.discountedCumulativeGain(k, r.PredictedRankInd, rel) / r.discountedCumulativeGain(k, r.PerfectRankInd, rel)
+}
 
 // PrecisionRecallCurve represents a precision recall curve for visualising and measuring the performance of a
 // classification or information retrieval model.  It can be used to evaluate how well the model predictions
