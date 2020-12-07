@@ -16,14 +16,22 @@ func reverse(numbers []int) {
 	}
 }
 
+// RankingEvaluation type for evaluating rankings for information retrieval and classification supporting
+// calculation of [normalised] discounted cumulative gain
 type RankingEvaluation struct {
-	// Thresholds is a slice containing the ranked (sorted) predictions (probability/similarity scores) until
-	// all positive/relevant items were found according to corresponding the ground truth labels (recall==1)
-	Relevancies      []float64
+	// Ground truth relevancy values in original ordering
+	Relevancies []float64
+
+	// ranked indexes of relevancy values, ranked according to predicted relevancy/probabilty values
 	PredictedRankInd []int
-	PerfectRankInd   []int
+
+	// ranked indexes of relevancy values, ranked according to ground truth relevancy values (a perfect ranking)
+	PerfectRankInd []int
 }
 
+// NewRankingEvaluation creates a new RankingEvaluation type from the specified predicted
+// relevancies (predictions) and ground truth relevancy values (labels).  The ordering
+// of both slices must correspond and the lengths must match.
 func NewRankingEvaluation(predictions, labels []float64) RankingEvaluation {
 	if len(predictions) != len(labels) {
 		panic("Prediction/Label length mismatch")
@@ -33,17 +41,6 @@ func NewRankingEvaluation(predictions, labels []float64) RankingEvaluation {
 	predInd := make([]int, len(predictions))
 	relevance := make([]float64, len(labels))
 	perfInd := make([]int, len(labels))
-
-	/*
-		if floats.Max(labels) == 0 {
-			for i := 0; i <
-			return RankingEvaluation{
-				Relevancies:      labels,
-				PredictedRankInd: predInd,
-				PerfectRankInd:   perfInd,
-			}
-		}
-	*/
 
 	// rank predictions/similarities
 	copy(thresholds, predictions)
@@ -63,6 +60,9 @@ func NewRankingEvaluation(predictions, labels []float64) RankingEvaluation {
 	}
 }
 
+// CumulativeGain calculates the cumulative gain for the ranking.  This is the cumulative
+// gain or sum of relevancy values at each rank up to the kth ranked item.  Where k is the cut-off
+// (specify len(Relevancies) for ALL items/no cut-off).
 func (r RankingEvaluation) CumulativeGain(k int) float64 {
 	var sum float64
 	for _, v := range r.PredictedRankInd[:k] {
@@ -71,14 +71,20 @@ func (r RankingEvaluation) CumulativeGain(k int) float64 {
 	return sum
 }
 
+// TraditionalRelevancy is the traditional formulation of the relevancy function for calculating discounted
+// cumulative gain.  It simply directly uses the specied degree of relevancy r.
 func TraditionalRelevancy(r float64) float64 {
 	return r
 }
 
+// EmphasisedRelevancy is an alternative formulation of the relevancy function for calculating discounted
+// cumulative gain that more strongly emphasises the degree of relevancy r.
 func EmphasisedRelevancy(r float64) float64 {
 	return math.Pow(2, r) - 1
 }
 
+// RelevancyFunction supports specification/weighting of relevancy values for calculating discounted
+// cumulative gain
 type RelevancyFunction func(float64) float64
 
 func (r RankingEvaluation) discountedCumulativeGain(k int, rankings []int, rel RelevancyFunction) float64 {
@@ -89,6 +95,12 @@ func (r RankingEvaluation) discountedCumulativeGain(k int, rankings []int, rel R
 	return sum
 }
 
+// DiscountedCumulativeGain calculates the discounted cumulative gain for the ranking.  This is the cumulative
+// gain or sum of relevancy values at each rank up to the kth ranked item with each relevancy value being
+// discounted according to rank so that relevancy values at lower ranks are more heavily discounted and therefore
+// contribute less to the sum.  Where k is the cut-off (specify len(Relevancies) for ALL items/no
+// cut-off) and rel is the relevancy function to use.  See TraditionalRelevancy and EmphasisedRelevancy for
+// two popular formulations of the relevancy function - either of which may be specified for this parameter.
 func (r RankingEvaluation) DiscountedCumulativeGain(k int, rel RelevancyFunction) float64 {
 	if k < 1 || k > len(r.Relevancies) {
 		panic("index k is out of bounds")
@@ -96,6 +108,11 @@ func (r RankingEvaluation) DiscountedCumulativeGain(k int, rel RelevancyFunction
 	return r.discountedCumulativeGain(k, r.PredictedRankInd, rel)
 }
 
+// NormalisedDiscountedCumulativeGain calculates the normalised discounted cumulative gain for the ranking.
+// This is the ratio of the discounted cumulative gain for the given ranking compared to the discounted cumulative
+// for a perfect ranking of the same items.  Where k is the cut-off (specify len(Relevancies) for ALL items/no
+// cut-off) and rel is the relevancy function to use.  See TraditionalRelevancy and EmphasisedRelevancy for
+// two popular formulations of the relevancy function - either of which may be specified for this parameter.
 func (r RankingEvaluation) NormalisedDiscountedCumulativeGain(k int, rel RelevancyFunction) float64 {
 	if k < 1 || k > len(r.Relevancies) {
 		panic("index k is out of bounds")
