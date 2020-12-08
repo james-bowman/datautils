@@ -121,7 +121,7 @@ func (r RankingEvaluation) NormalisedDiscountedCumulativeGain(k int, rel Relevan
 		panic("index k is out of bounds")
 	}
 	if floats.Max(r.Relevancies) == 0 {
-		// no relevant items so any order is perfect
+		// no relevant items so the DCG of any ranking will match a perfect ordering
 		return 1.0
 	}
 	return r.discountedCumulativeGain(k, r.PredictedRankInd, rel) / r.discountedCumulativeGain(k, r.PerfectRankInd, rel)
