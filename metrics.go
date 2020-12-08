@@ -64,6 +64,9 @@ func NewRankingEvaluation(predictions, labels []float64) RankingEvaluation {
 // gain or sum of relevancy values at each rank up to the kth ranked item.  Where k is the cut-off
 // (specify len(Relevancies) for ALL items/no cut-off).
 func (r RankingEvaluation) CumulativeGain(k int) float64 {
+	if k < 1 || k > len(r.Relevancies) {
+		panic("index k is out of bounds")
+	}
 	var sum float64
 	for _, v := range r.PredictedRankInd[:k] {
 		sum += r.Relevancies[v]
